@@ -1,5 +1,8 @@
+jupyter
 matplotlib
 numpy
+opencv-python
 pillow
+pyexr
 scipy
 tqdm
