@@ -7,8 +7,12 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 
-def read_image(file_path: str) -> np.ndarray:
-    """Load an EXR or PNG image from disk as RGB numpy array."""
+def read_image(file_path: str, white_nits: float = 400) -> np.ndarray:
+    """Load an EXR or PNG image from disk as RGB numpy array.
+
+    Assumes EXR images are in units of nits (candela/m^2).
+    Assumes PNG images are displayed on a monitor at the specified luminance for pure white.
+    """
     if file_path.endswith(".exr"):
         gamma = 2.2
         exr_image = pyexr.open(file_path)
@@ -48,7 +52,7 @@ def read_image(file_path: str) -> np.ndarray:
             )
         return image.astype(np.float32)
     elif file_path.endswith(".png"):
-        image = (
+        image = white_nits * (
             np.asarray(Image.open(file_path).convert("RGB"), dtype=np.float32) / 255.0
         )
         return image
@@ -124,41 +128,56 @@ def gaussian_blur_cv(image: np.ndarray, sigma: float) -> np.ndarray:
 
 def dn_brightness_model(
     L: np.ndarray,
-    scales: list[float],
-    weight_decay: float = 0.85,
-    base_activation: float = 1e-8,
+    min_scale: int = 1,
+    w: float = 0.85,
+    a: float = 1.0,
+    b: float = 0.0,
+    c: float = 1.0,
+    d: float = 1e-8,
 ) -> np.ndarray:
     """Apply divisive normalization brightness model to array of luminances (i.e. greyscale input image).
 
-    B(x,y) = sum(weight_decay**(i) * center / (surround + base_activation/scales[i]**2))
+    B(x,y) = sum(
+        w**i * (
+            (a*center + b / scales[i]**2) / (c*surround + d / scales[i]**2)
+            - (b / scales[i]**2) / (d / scales[i]**2)
+        )
+    )
 
     NOTE: The current scale is the center stdev at the current scale,
           the next scale up is the surround stdev at the current scale.
     """
-    weights = [weight_decay**i for i in range(len(scales))]
+    max_scale = np.min(L.shape)
+    scale = max_scale
+    scales = []
+    while scale / 2 >= min_scale:
+        next_scale = scale / 2
+        scales.append(next_scale)
+        scale = next_scale
+    weights = [w**i for i in range(len(scales))]
 
     # Initialize weighted_sum as a 2D array
     weighted_sum = np.zeros(L.shape[:2], dtype=L.dtype)
 
     # Compute ratios and weighted sum using only two blurred images at a time
-    prev_blurred = gaussian_blur_cv(L, scales[0])
-    prev_blurred = np.squeeze(prev_blurred)  # Ensure 2D
+    center_response = gaussian_blur_cv(L, scales[0])
+    center_response = np.squeeze(center_response)  # Ensure 2D
 
     for i in range(1, len(scales)):
-        curr_blurred = gaussian_blur_cv(L, scales[i])
-        curr_blurred = np.squeeze(curr_blurred)  # Ensure 2D
+        surround_response = gaussian_blur_cv(L, scales[i])
+        surround_response = np.squeeze(surround_response)  # Ensure 2D
 
         # Ensure ratio computation works with 2D arrays
-        if prev_blurred.ndim != 2 or curr_blurred.ndim != 2:
+        if center_response.ndim != 2 or surround_response.ndim != 2:
             raise ValueError(
-                f"Expected 2D arrays, got shapes {prev_blurred.shape}, {curr_blurred.shape}"
+                f"Expected 2D arrays, got shapes {center_response.shape}, {surround_response.shape}"
             )
 
-        weighted_sum += (
-            weights[i - 1]
-            * prev_blurred
-            / (curr_blurred + base_activation / scales[i] ** 2)
+        _b = b / scales[i] ** 2
+        _d = d / scales[i] ** 2
+        weighted_sum += weights[i - 1] * (
+            (a * center_response + _b) / (c * surround_response + _d) - _b / _d
         )
-        prev_blurred = curr_blurred  # Update for the next iteration
+        center_response = surround_response  # Update for the next iteration
 
     return weighted_sum

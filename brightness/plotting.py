@@ -1,12 +1,19 @@
 import numpy as np
 import pyexr
+import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from matplotlib.cm import get_cmap
 from matplotlib.colors import Normalize
 from PIL import Image
 
 
-def display_height_plot(image):
+def image_height_plot(
+    image: np.ndarray,
+    title: str = "",
+    colorscale: str = "Viridis",
+    output_path: str = "",
+    display: bool = True,
+) -> go.Figure:
     # Ensure the input is a 2D array
     image = np.squeeze(image)
     if image.ndim != 2:
@@ -14,13 +21,25 @@ def display_height_plot(image):
 
     x = np.linspace(0, image.shape[1] - 1, image.shape[1])
     y = np.linspace(0, image.shape[0] - 1, image.shape[0])
-    x, y = np.meshgrid(x, y)
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection="3d")
-    # ax.plot_surface(x, y, image, cmap='hsv', rstride=1, cstride=1,  edgecolor='none')
-    ax.plot_surface(x, y, image, cmap="hsv", edgecolor="none")
-    ax.set_title("Brightness Plot")
-    plt.show()
+    X, Y = np.meshgrid(x, y)
+    fig = go.Figure(
+        data=[
+            go.Surface(
+                z=image,
+                x=X,
+                y=Y,
+                hovertemplate="x: %{x}<br>y: %{y}<br>z: %{z:.2f}",
+                colorscale=colorscale,
+            )
+        ],
+    )
+    if title:
+        fig.update_layout(title=title)
+    if output_path:
+        fig.write_html(output_path)
+    if display:
+        fig.show()
+    return fig
 
 
 def display_pseudocolor(image, title):

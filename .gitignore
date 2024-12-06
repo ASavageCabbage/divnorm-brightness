@@ -162,4 +162,4 @@ cython_debug/
 #.idea/
 
 # Temporary output files
-*/_output/*
+_output/*
