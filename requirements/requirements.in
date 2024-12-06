@@ -3,6 +3,7 @@ matplotlib
 numpy
 opencv-python
 pillow
+plotly
 pyexr
 scipy
 tqdm
