@@ -1,9 +1,6 @@
-import sys
-
 import cv2
 import numpy as np
 import pyexr
-import matplotlib.pyplot as plt
 from PIL import Image
 
 
@@ -152,7 +149,7 @@ def dn_brightness_model(
     scales = []
     while scale / 2 >= min_scale:
         next_scale = scale / 2
-        scales.append(next_scale)
+        scales.insert(0, next_scale)
         scale = next_scale
     weights = [w**i for i in range(len(scales))]
 

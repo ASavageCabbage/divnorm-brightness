@@ -20,7 +20,8 @@ def image_height_plot(
         raise ValueError("Input to display_height_plot must be a 2D array.")
 
     x = np.linspace(0, image.shape[1] - 1, image.shape[1])
-    y = np.linspace(0, image.shape[0] - 1, image.shape[0])
+    # Invert the y data to display the image properly
+    y = np.linspace(0, image.shape[0] - 1, image.shape[0])[::-1]
     X, Y = np.meshgrid(x, y)
     fig = go.Figure(
         data=[
@@ -32,6 +33,16 @@ def image_height_plot(
                 colorscale=colorscale,
             )
         ],
+    )
+    fig.update_layout(
+        scene=dict(
+            aspectmode='manual',
+            aspectratio=dict(
+                x=1,
+                y=len(y)/len(x),
+                z=0.5,
+            ),
+        ),
     )
     if title:
         fig.update_layout(title=title)
