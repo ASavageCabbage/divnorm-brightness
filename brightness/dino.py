@@ -4,9 +4,9 @@ import numpy as np
 
 def read_image(
     file_path: str,
-    white_nits: float = 400,
     resize_width: int = None,
     resize_height: int = None,
+    white_nits: float = 400,
     gamma: float = 2.2,
 ) -> np.ndarray:
     """Load HDR or PNG image from disk as RGB numpy array.
@@ -16,28 +16,26 @@ def read_image(
     """
     if any(file_path.endswith(ext) for ext in [".exr", ".hdr"]):
         hdr_image = cv2.imread(file_path, cv2.IMREAD_ANYDEPTH).astype(np.float32)
+        hdr_image[hdr_image < 0] = 0  # Negative values shouldn't exist
         # OpenCV uses BGR
         b = hdr_image[:, :, 0]
         g = hdr_image[:, :, 1]
         r = hdr_image[:, :, 2]
-        r = np.absolute(r)
-        g = np.absolute(g)
-        b = np.absolute(b)
+        # Apply gamma correction
         r = np.power(r, 1.0 / gamma)
         g = np.power(g, 1.0 / gamma)
         b = np.power(b, 1.0 / gamma)
-        image = np.stack([r, g, b], axis=-1)
     elif any(file_path.endswith(ext) for ext in [".png", ".jpg", ".jpeg"]):
         sdr_image = cv2.imread(file_path, cv2.IMREAD_UNCHANGED).astype(np.float32)
-        # OpenCV uses BGR
-        b = sdr_image[:, :, 0] * white_nits
-        g = sdr_image[:, :, 1] * white_nits
-        r = sdr_image[:, :, 2] * white_nits
-        image = np.stack([r, g, b], axis=-1)
+        # OpenCV uses BGR and uint8 for SDR images (0, 255)
+        b = sdr_image[:, :, 0] * white_nits / 255
+        g = sdr_image[:, :, 1] * white_nits / 255
+        r = sdr_image[:, :, 2] * white_nits / 255
     else:
         raise ValueError("Unsupported file format.")
 
     # Optionally resize the image before output
+    image = np.stack([r, g, b], axis=-1)
     (
         height,
         width,
@@ -87,10 +85,8 @@ def lxy_to_rgb(
     y_chroma = np.squeeze(y_chroma)
 
     # Validate shapes
-    if luminance.shape != x_chroma.shape or luminance.shape != y_chroma.shape:
-        raise ValueError(
-            f"Shape mismatch: luminance {luminance.shape}, x_chroma {x_chroma.shape}, y_chroma {y_chroma.shape}"
-        )
+    assert luminance.shape == x_chroma.shape
+    assert luminance.shape == y_chroma.shape
 
     z_chroma = 1 - x_chroma - y_chroma
     X = luminance * x_chroma / (y_chroma + 1e-8)
