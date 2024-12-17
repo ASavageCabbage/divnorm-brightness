@@ -36,10 +36,10 @@ def image_height_plot(
     )
     fig.update_layout(
         scene=dict(
-            aspectmode='manual',
+            aspectmode="manual",
             aspectratio=dict(
                 x=1,
-                y=len(y)/len(x),
+                y=len(y) / len(x),
                 z=0.5,
             ),
         ),

@@ -1,0 +1,16 @@
+indoor,indoor,indoor,indoor,indoor,indoor,outdoor,outdoor,outdoor,outdoor,outdoor,outdoor,night,night,night,night,night,night
+tm,brightness,contrast,details,colours,quality,tm,brightness,contrast,details,colours,quality,tm,brightness,contrast,details,colours,quality
+ashikmin02,8.3,8,10.2,8.3,7.6,ashikmin02,8.7,6.9,7.7,6.8,4.9,ashikmin02,5.1,3.6,3.6,4.5,3.3
+chiu93,1.1,2.7,3,1.1,1.8,chiu93,4.4,3.5,3.1,1.1,0.3,chiu93,1,1,1,1,1
+choudhury03,5.2,5.9,7,5.4,2.2,choudhury03,8.2,5.8,7.9,7.3,6,choudhury03,7.1,6.6,5.3,5.9,5.1
+clip,10.6,7.6,7.6,11.3,8.9,clip,12.3,13.2,12.5,13.4,13.2,clip,11.3,12.8,13.2,12.2,12.9
+drago03,10.9,9.5,6.9,9,8.9,drago03,3.6,4.1,5.1,5.4,6.9,drago03,4.9,4.9,3.3,3.8,3.4
+durand02,8.4,4.7,6.9,4.6,3.5,durand02,3.6,6,4.8,5.6,7.7,durand02,11.4,12.5,12.8,11.7,13
+fattal02,3.2,5.4,7.4,5,5.8,fattal02,2.8,1.8,3.1,3.7,3.5,fattal02,4,2.4,2.4,2.6,2.7
+lcis99,4.1,6.2,5.4,3.4,4.6,lcis99,9.4,7.9,8.8,7.9,7.8,lcis99,6.5,6.2,5.8,6.1,5.7
+pattanaik02,11.1,8.9,12.4,8.6,6.8,pattanaik02,6.1,4.1,3.4,2.1,2.1,pattanaik02,9.1,10,10.5,9.6,9.2
+reinhard02,10.8,11.6,10.4,12.5,12.2,reinhard02,9.2,10.6,9,10.1,7.9,reinhard02,9.1,9,9.4,9.7,9.3
+schlick94,3.8,7.1,6.2,5.6,9.3,schlick94,9.4,10.6,10.7,10.9,11.5,schlick94,8.8,9.3,9.7,9.5,10.4
+tumblin99,11.1,9.5,7.5,10.3,10.8,tumblin99,12.4,12.7,12.5,13.6,12.9,tumblin99,7.4,7.6,8.1,8.4,8.8
+ward94,7.7,8.1,5.3,9.6,9.7,ward94,4.3,6.2,4.1,5.7,8.2,ward94,10.6,12.1,12.1,11.9,12.5
+ward97,8.8,9.8,8.1,10.3,11.5,ward97,10.6,11.6,12.3,11.4,11.3,ward97,8.7,7,7.8,8.1,7.7

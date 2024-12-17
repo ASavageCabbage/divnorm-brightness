@@ -1,62 +1,60 @@
 import cv2
 import numpy as np
-import pyexr
 from PIL import Image
 
 
-def read_image(file_path: str, white_nits: float = 400) -> np.ndarray:
-    """Load an EXR or PNG image from disk as RGB numpy array.
+def read_image(
+    file_path: str,
+    white_nits: float = 400,
+    resize_width: int = None,
+    resize_height: int = None,
+) -> np.ndarray:
+    """Load HDR or PNG image from disk as RGB numpy array.
 
     Assumes EXR images are in units of nits (candela/m^2).
     Assumes PNG images are displayed on a monitor at the specified luminance for pure white.
     """
-    if file_path.endswith(".exr"):
+    if any(file_path.endswith(ext) for ext in [".exr", ".hdr"]):
         gamma = 2.2
-        exr_image = pyexr.open(file_path)
-        # Check for individual "R", "G", "B" channels
-        if (
-            "R" in exr_image.channel_map
-            and "G" in exr_image.channel_map
-            and "B" in exr_image.channel_map
-        ):
-            r = exr_image.get("R")
-            g = exr_image.get("G")
-            b = exr_image.get("B")
-            height, width, channels = r.shape
-            if width > 4000:
-                scale_factor = 0.5
-                new_width = int(width * scale_factor)
-                new_height = int(height * scale_factor)
-                r = cv2.resize(
-                    r, (new_width, new_height), interpolation=cv2.INTER_CUBIC
-                )
-                g = cv2.resize(
-                    g, (new_width, new_height), interpolation=cv2.INTER_CUBIC
-                )
-                b = cv2.resize(
-                    b, (new_width, new_height), interpolation=cv2.INTER_CUBIC
-                )
-            image = np.stack([r, g, b], axis=-1)
-            r = np.absolute(r)
-            g = np.absolute(g)
-            b = np.absolute(b)
-            r = np.power(r, 1.0 / gamma)
-            g = np.power(g, 1.0 / gamma)
-            b = np.power(b, 1.0 / gamma)
-        else:
-            raise ValueError(
-                f"EXR file does not contain R, G, B channels. Found: {exr_image.channel_map.keys()}"
-            )
-        return image.astype(np.float32)
+        hdr_image = cv2.imread(file_path, cv2.IMREAD_ANYDEPTH)
+        # Check that image is RGB
+        assert hdr_image.shape[2] == 3
+        # OpenCV uses BGR
+        b = hdr_image[:, :, 0]
+        g = hdr_image[:, :, 1]
+        r = hdr_image[:, :, 2]
+        image = np.stack([r, g, b], axis=-1)
+        r = np.absolute(r)
+        g = np.absolute(g)
+        b = np.absolute(b)
+        r = np.power(r, 1.0 / gamma)
+        g = np.power(g, 1.0 / gamma)
+        b = np.power(b, 1.0 / gamma)
     elif file_path.endswith(".png"):
         image = white_nits * (
             np.asarray(Image.open(file_path).convert("RGB"), dtype=np.float32) / 255.0
         )
-        return image
     else:
         raise ValueError(
-            "Unsupported file format. Only EXR and PNG files are supported."
+            "Unsupported file format. Only HDR/EXR and PNG files are supported."
         )
+    # Optionally resize the image before output
+    (
+        height,
+        width,
+    ) = image.shape[:2]
+    if not (resize_width is None and resize_height is None):
+        if resize_width is None:
+            resize_width = resize_height / height * width
+        if resize_height is None:
+            resize_height = resize_width / width * height
+        resize_width = round(resize_width)
+        resize_height = round(resize_height)
+        if height != resize_height or width != resize_width:
+            image = cv2.resize(
+                image, (resize_width, resize_height), interpolation=cv2.INTER_CUBIC
+            )
+    return image.astype(np.float32)
 
 
 def rgb_to_xyz(image: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -128,9 +126,10 @@ def dn_brightness_model(
     min_scale: int = 1,
     w: float = 0.85,
     a: float = 1.0,
-    b: float = 0.0,
+    b: float = 1.0,
     c: float = 1.0,
-    d: float = 1e-8,
+    d: float = 1.0,
+    scale_normalized_constants: bool = False,
 ) -> np.ndarray:
     """Apply divisive normalization brightness model to array of luminances (i.e. greyscale input image).
 
@@ -170,8 +169,12 @@ def dn_brightness_model(
                 f"Expected 2D arrays, got shapes {center_response.shape}, {surround_response.shape}"
             )
 
-        _b = b / scales[i] ** 2
-        _d = d / scales[i] ** 2
+        _b = b
+        _d = d
+        if scale_normalized_constants:
+            _b /= scales[i] ** 2
+            _d /= scales[i] ** 2
+
         weighted_sum += weights[i - 1] * (
             (a * center_response + _b) / (c * surround_response + _d) - _b / _d
         )
