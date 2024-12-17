@@ -4,9 +4,7 @@ import numpy as np
 def reinhard_tone_map(
     L: np.ndarray, key: float = 0.18, L_white: float = 1.0
 ) -> np.ndarray:
-    """Tone mapper described by Reinhard et al,
-    inspired by Blommaert and Martens's object-oriented brightness model.
-    """
+    """Tone mapper described by Reinhard et al"""
     gamma = 2.2
     # Reinhard takes the log average and this is akin to taking the average of gamma corrected values and linearizing it
     average = np.mean(L)

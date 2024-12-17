@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-from PIL import Image
 
 
 def read_image(
@@ -8,6 +7,7 @@ def read_image(
     white_nits: float = 400,
     resize_width: int = None,
     resize_height: int = None,
+    gamma: float = 2.2,
 ) -> np.ndarray:
     """Load HDR or PNG image from disk as RGB numpy array.
 
@@ -15,29 +15,28 @@ def read_image(
     Assumes PNG images are displayed on a monitor at the specified luminance for pure white.
     """
     if any(file_path.endswith(ext) for ext in [".exr", ".hdr"]):
-        gamma = 2.2
-        hdr_image = cv2.imread(file_path, cv2.IMREAD_ANYDEPTH)
-        # Check that image is RGB
-        assert hdr_image.shape[2] == 3
+        hdr_image = cv2.imread(file_path, cv2.IMREAD_ANYDEPTH).astype(np.float32)
         # OpenCV uses BGR
         b = hdr_image[:, :, 0]
         g = hdr_image[:, :, 1]
         r = hdr_image[:, :, 2]
-        image = np.stack([r, g, b], axis=-1)
         r = np.absolute(r)
         g = np.absolute(g)
         b = np.absolute(b)
         r = np.power(r, 1.0 / gamma)
         g = np.power(g, 1.0 / gamma)
         b = np.power(b, 1.0 / gamma)
-    elif file_path.endswith(".png"):
-        image = white_nits * (
-            np.asarray(Image.open(file_path).convert("RGB"), dtype=np.float32) / 255.0
-        )
+        image = np.stack([r, g, b], axis=-1)
+    elif any(file_path.endswith(ext) for ext in [".png", ".jpg", ".jpeg"]):
+        sdr_image = cv2.imread(file_path, cv2.IMREAD_UNCHANGED).astype(np.float32)
+        # OpenCV uses BGR
+        b = sdr_image[:, :, 0] * white_nits
+        g = sdr_image[:, :, 1] * white_nits
+        r = sdr_image[:, :, 2] * white_nits
+        image = np.stack([r, g, b], axis=-1)
     else:
-        raise ValueError(
-            "Unsupported file format. Only HDR/EXR and PNG files are supported."
-        )
+        raise ValueError("Unsupported file format.")
+
     # Optionally resize the image before output
     (
         height,
@@ -54,7 +53,7 @@ def read_image(
             image = cv2.resize(
                 image, (resize_width, resize_height), interpolation=cv2.INTER_CUBIC
             )
-    return image.astype(np.float32)
+    return image
 
 
 def rgb_to_xyz(image: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

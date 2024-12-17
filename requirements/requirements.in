@@ -3,8 +3,6 @@ matplotlib
 numpy
 opencv-python
 pandas
-pillow
 plotly
-pyexr
 scipy
 tqdm
