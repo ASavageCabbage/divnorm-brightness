@@ -1,41 +1,16 @@
+import os
+
 import cv2
 import numpy as np
 
 
-def read_image(
-    file_path: str,
-    resize_width: int = None,
-    resize_height: int = None,
-    white_nits: float = 400,
-    gamma: float = 2.2,
+# Needed to use OpenEXR with OpenCV
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+
+
+def resize_image(
+    image: np.ndarray, resize_width: int = None, resize_height: int = None
 ) -> np.ndarray:
-    """Load HDR or PNG image from disk as RGB numpy array.
-
-    Assumes EXR images are in units of nits (candela/m^2).
-    Assumes PNG images are displayed on a monitor at the specified luminance for pure white.
-    """
-    if any(file_path.endswith(ext) for ext in [".exr", ".hdr"]):
-        hdr_image = cv2.imread(file_path, cv2.IMREAD_ANYDEPTH).astype(np.float32)
-        hdr_image[hdr_image < 0] = 0  # Negative values shouldn't exist
-        # OpenCV uses BGR
-        b = hdr_image[:, :, 0]
-        g = hdr_image[:, :, 1]
-        r = hdr_image[:, :, 2]
-        # Apply gamma correction
-        r = np.power(r, 1.0 / gamma)
-        g = np.power(g, 1.0 / gamma)
-        b = np.power(b, 1.0 / gamma)
-    elif any(file_path.endswith(ext) for ext in [".png", ".jpg", ".jpeg"]):
-        sdr_image = cv2.imread(file_path, cv2.IMREAD_UNCHANGED).astype(np.float32)
-        # OpenCV uses BGR and uint8 for SDR images (0, 255)
-        b = sdr_image[:, :, 0] * white_nits / 255
-        g = sdr_image[:, :, 1] * white_nits / 255
-        r = sdr_image[:, :, 2] * white_nits / 255
-    else:
-        raise ValueError("Unsupported file format.")
-
-    # Optionally resize the image before output
-    image = np.stack([r, g, b], axis=-1)
     (
         height,
         width,
@@ -52,6 +27,61 @@ def read_image(
                 image, (resize_width, resize_height), interpolation=cv2.INTER_CUBIC
             )
     return image
+
+
+def read_greyscale_hdr(file_path: str, gamma: float = 1.0):
+    """Load greyscale HDR image from disk as 2D numpy array of luminances.
+
+    If loading brightness response, leave gamma = 1.
+    If loading greyscale scene, set gamma = 2.2.
+    """
+    if not any(file_path.endswith(ext) for ext in [".exr", ".hdr"]):
+        raise ValueError("Unsupported file format.")
+
+    image = cv2.imread(file_path, cv2.IMREAD_ANYDEPTH).astype(np.float32)
+    image[image < 0] = 0  # Negative values shouldn't exist
+    return np.power(image, 1.0 / gamma)
+
+
+def read_image(
+    file_path: str, white_nits: float = 400, gamma: float = 2.2
+) -> np.ndarray:
+    """Load HDR or SDR image from disk as RGB numpy array.
+
+    Assumes EXR images are in units of nits (candela/m^2).
+    Assumes SDR images are displayed on a monitor at the specified luminance (nits) for pure white.
+
+    Returns image with RGB channels in nits.
+    """
+    if any(file_path.endswith(ext) for ext in [".hdr"]):
+        image = cv2.imread(file_path, cv2.IMREAD_ANYDEPTH).astype(np.float32)
+    elif any(file_path.endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".exr"]):
+        image = cv2.imread(file_path, cv2.IMREAD_UNCHANGED).astype(np.float32)
+    else:
+        raise ValueError("Unsupported file format.")
+
+    # RGB or RGBA only
+    assert len(image.shape) == 3
+    assert image.shape[2] >= 3
+    # Negative values shouldn't exist
+    image[image < 0] = 0
+    # OpenCV uses BGR
+    b = image[:, :, 0]
+    g = image[:, :, 1]
+    r = image[:, :, 2]
+
+    if any(file_path.endswith(ext) for ext in [".hdr", ".exr"]):
+        # Apply gamma correction
+        r = np.power(r, 1.0 / gamma)
+        g = np.power(g, 1.0 / gamma)
+        b = np.power(b, 1.0 / gamma)
+    else:
+        # OpenCV uses BGR and uint8 for SDR images (0, 255)
+        r = r * white_nits / 255
+        g = g * white_nits / 255
+        b = b * white_nits / 255
+
+    return np.stack([r, g, b], axis=-1)
 
 
 def rgb_to_xyz(image: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
