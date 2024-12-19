@@ -1,4 +1,5 @@
 import os
+from typing import Generator
 
 import cv2
 import numpy as np
@@ -216,11 +217,11 @@ def gaussian_blur_all_scales(
     L: np.ndarray,
     cs_ratio: float = 2.0,
     min_scale: float = 1.0,
-) -> dict[float, np.ndarray]:
+) -> Generator[tuple[float, np.ndarray], None, None]:
     """Compute and return a Gaussian-blurred image for all envelope scales.
 
-    Returns a dictionary of the form {<stdev>: <Gaussian-blurred image>, ...}
+    Returns a generator of (<stdev>, <Gaussian-blurred image>) tuples
     for all scales down to min_scale.
     """
-    scales = generate_scales(L.shape, cs_ratio, min_scale)
-    return {s: gaussian_blur_cv(L, s) for s in scales}
+    for scale in generate_scales(L.shape, cs_ratio, min_scale):
+        yield scale, gaussian_blur_cv(L, scale)
