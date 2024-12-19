@@ -2,7 +2,7 @@ import numpy as np
 
 
 def aces(
-    L: np.ndarray,
+    image: np.ndarray,
     a: float = 2.51,
     b: float = 0.03,
     c: float = 2.43,
@@ -12,4 +12,4 @@ def aces(
     """ACES global tone mapper with default values as per
     https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
     """
-    return (L * (a * L + b)) / (L * (c * L + d) + e)
+    return (image * (a * image + b)) / (image * (c * image + d) + e)

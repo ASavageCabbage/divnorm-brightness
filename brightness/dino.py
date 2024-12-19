@@ -23,25 +23,12 @@ def resize_image(
             resize_height = resize_width / width * height
         resize_width = round(resize_width)
         resize_height = round(resize_height)
-        if height != resize_height or width != resize_width:
+        # Only resize down
+        if height > resize_height or width > resize_width:
             image = cv2.resize(
                 image, (resize_width, resize_height), interpolation=cv2.INTER_CUBIC
             )
     return image
-
-
-def read_greyscale_hdr(file_path: str, gamma: float = 1.0):
-    """Load greyscale HDR image from disk as 2D numpy array of luminances.
-
-    If loading brightness response, leave gamma = 1.
-    If loading greyscale scene, set gamma = 2.2.
-    """
-    if not any(file_path.endswith(ext) for ext in [".exr", ".hdr"]):
-        raise ValueError("Unsupported file format.")
-
-    image = cv2.imread(file_path, cv2.IMREAD_ANYDEPTH).astype(np.float32)
-    image[image < 0] = 0  # Negative values shouldn't exist
-    return np.power(image, 1.0 / gamma)
 
 
 def read_image(
@@ -54,12 +41,7 @@ def read_image(
 
     Returns image with RGB channels in nits.
     """
-    if any(file_path.endswith(ext) for ext in [".hdr"]):
-        image = cv2.imread(file_path, cv2.IMREAD_ANYDEPTH).astype(np.float32)
-    elif any(file_path.endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".exr"]):
-        image = cv2.imread(file_path, cv2.IMREAD_UNCHANGED).astype(np.float32)
-    else:
-        raise ValueError("Unsupported file format.")
+    image = cv2.imread(file_path, cv2.IMREAD_UNCHANGED).astype(np.float32)
 
     # RGB or RGBA only
     assert len(image.shape) == 3
@@ -73,9 +55,9 @@ def read_image(
 
     if any(file_path.endswith(ext) for ext in [".hdr", ".exr"]):
         # Apply gamma correction
-        r = np.power(r, 1.0 / gamma)
-        g = np.power(g, 1.0 / gamma)
-        b = np.power(b, 1.0 / gamma)
+        r = r ** (1.0 / gamma)
+        g = g ** (1.0 / gamma)
+        b = b ** (1.0 / gamma)
     else:
         # OpenCV uses BGR and uint8 for SDR images (0, 255)
         r = r * white_nits / 255
@@ -94,7 +76,7 @@ def rgb_to_xyz(image: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
             [0.0193339, 0.1191920, 0.9503041],
         ]
     )
-    xyz = np.dot(image, rgb_to_xyz_matrix.T)
+    xyz = image @ rgb_to_xyz_matrix.T
     return xyz[..., 0], xyz[..., 1], xyz[..., 2]  # X, Y, Z
 
 
@@ -135,9 +117,11 @@ def lxy_to_rgb(
     return rgb
 
 
-def gaussian_blur_cv(image: np.ndarray, sigma: float) -> np.ndarray:
+def gaussian_blur_cv(
+    image: np.ndarray, sigma: float, kernel_sigmas: int = 1
+) -> np.ndarray:
     # Ensure the kernel size is odd
-    kernel_size = int(6 * sigma + 1) | 1
+    kernel_size = int(2 * kernel_sigmas * sigma + 1) | 1
     blurred = cv2.GaussianBlur(
         image,
         (kernel_size, kernel_size),
@@ -188,7 +172,7 @@ def dn_brightness_model(
     weights = [w**i for i in range(len(scales))]
 
     # Initialize weighted_sum as a 2D array
-    weighted_sum = np.zeros(L.shape[:2], dtype=L.dtype)
+    weighted_sum = np.zeros(L.shape[:2])
 
     # Compute ratios and weighted sum using only two blurred images at a time
     center_response = gaussian_blur_cv(L, scales[0])
