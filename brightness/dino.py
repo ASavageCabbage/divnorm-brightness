@@ -135,20 +135,35 @@ def lxy_to_rgb(
 
 
 def gaussian_blur_cv(image: np.ndarray, sigma: float) -> np.ndarray:
-    # Use OpenCV's GaussianBlur
-    kernel_size = int(6 * sigma + 1) | 1  # Ensure the kernel size is odd
-    return cv2.GaussianBlur(
+    # Ensure the kernel size is odd
+    kernel_size = int(6 * sigma + 1) | 1
+    blurred = cv2.GaussianBlur(
         image,
         (kernel_size, kernel_size),
         sigmaX=sigma,
         sigmaY=sigma,
         borderType=cv2.BORDER_REPLICATE,
     )
+    return np.squeeze(blurred)
+
+
+def generate_scales(
+    shape: tuple[int, int], cs_ratio: float, min_scale: float
+) -> list[float]:
+    """Generate an exponential list of scales from max(shape) / cs_ratio to min_scale."""
+    max_scale = np.min(shape)
+    scale = max_scale / cs_ratio
+    scales = []
+    while scale >= min_scale:
+        scales.insert(0, scale)
+        scale /= cs_ratio
+    return scales
 
 
 def dn_brightness_model(
     L: np.ndarray,
-    min_scale: int = 1,
+    cs_ratio: float = 2.0,
+    min_scale: float = 1.0,
     w: float = 0.85,
     a: float = 1.0,
     b: float = 1.0,
@@ -168,13 +183,7 @@ def dn_brightness_model(
     NOTE: The current scale is the center stdev at the current scale,
           the next scale up is the surround stdev at the current scale.
     """
-    max_scale = np.min(L.shape)
-    scale = max_scale
-    scales = []
-    while scale / 2 >= min_scale:
-        next_scale = scale / 2
-        scales.insert(0, next_scale)
-        scale = next_scale
+    scales = generate_scales(L.shape, cs_ratio, min_scale)
     weights = [w**i for i in range(len(scales))]
 
     # Initialize weighted_sum as a 2D array
@@ -182,17 +191,12 @@ def dn_brightness_model(
 
     # Compute ratios and weighted sum using only two blurred images at a time
     center_response = gaussian_blur_cv(L, scales[0])
-    center_response = np.squeeze(center_response)  # Ensure 2D
 
     for i in range(1, len(scales)):
         surround_response = gaussian_blur_cv(L, scales[i])
-        surround_response = np.squeeze(surround_response)  # Ensure 2D
 
-        # Ensure ratio computation works with 2D arrays
-        if center_response.ndim != 2 or surround_response.ndim != 2:
-            raise ValueError(
-                f"Expected 2D arrays, got shapes {center_response.shape}, {surround_response.shape}"
-            )
+        assert center_response.ndim == 2
+        assert surround_response.ndim == 2
 
         _b = b
         _d = d
@@ -203,6 +207,20 @@ def dn_brightness_model(
         weighted_sum += weights[i - 1] * (
             (a * center_response + _b) / (c * surround_response + _d) - _b / _d
         )
-        center_response = surround_response  # Update for the next iteration
+        center_response = surround_response
 
     return weighted_sum
+
+
+def gaussian_blur_all_scales(
+    L: np.ndarray,
+    cs_ratio: float = 2.0,
+    min_scale: float = 1.0,
+) -> dict[float, np.ndarray]:
+    """Compute and return a Gaussian-blurred image for all envelope scales.
+
+    Returns a dictionary of the form {<stdev>: <Gaussian-blurred image>, ...}
+    for all scales down to min_scale.
+    """
+    scales = generate_scales(L.shape, cs_ratio, min_scale)
+    return {s: gaussian_blur_cv(L, s) for s in scales}
