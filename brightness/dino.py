@@ -167,48 +167,6 @@ def generate_scales(
     return scales
 
 
-def dn_exposure_model(
-    L: np.ndarray,
-    cs_ratio: float = 2.0,
-    min_scale: float = 1.0,
-    w: float = 0.85,
-    a: float = 1.0,
-    b: float = 1.0,
-    c: float = 1.0,
-    d: float = 1.0,
-    scale_normalized_constants: bool = False,
-) -> np.ndarray:
-    """Very similar to brightness but takes a weighted average of the guassian blurs using weights that 
-     are the activision of the channels in the brightness model
-    """
-    scales = generate_scales(L.shape, cs_ratio, min_scale)
-    weights = [w**i for i in range(len(scales))]
-
-    # Initialize weighted_sum as a 2D array
-    weighted_sum = np.zeros(L.shape[:2], dtype=L.dtype)
-    sum_of_activations = 0.0
-
-    # Compute ratios and weighted sum using only two blurred images at a time
-    center_response = gaussian_blur_cv(L, scales[0])
-
-    for i in range(1, len(scales)):
-        surround_response = gaussian_blur_cv(np.power(L,1.0/2.2), scales[i])
-
-        assert center_response.ndim == 2
-        assert surround_response.ndim == 2
-
-        _b = b
-        _d = d
-
-        activation = np.abs(weights[i - 1] * (
-            (a * center_response + _b) / (c * surround_response + _d) - _b / _d
-        ))
-        sum_of_activations += activation
-        weighted_sum += activation*center_response
-        center_response = surround_response
-
-    return weighted_sum / sum_of_activations
-
 def dn_brightness_model(
     L: np.ndarray,
     cs_ratio: float = 2.0,
