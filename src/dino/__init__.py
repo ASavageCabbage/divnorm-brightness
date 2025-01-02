@@ -1,1 +1,2 @@
-from .cv2 import *
+from . import opencv, pytorch
+from .opencv import *

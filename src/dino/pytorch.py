@@ -26,6 +26,8 @@ def gaussian_blur(
 ) -> torch.Tensor:
     kernel_size = int(2 * kernel_sigmas * sigma + 1) | 1
     blur = GaussianBlur(kernel_size=kernel_size, sigma=sigma)
+    if len(image.size()) < 3:
+        image = image.unsqueeze(0)
     image = blur(image).squeeze()
     assert_no_nans(image)
     return image
