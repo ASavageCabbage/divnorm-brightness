@@ -8,4 +8,4 @@ requirements:
 
 .PHONY: format
 format:
-	ruff format brightness
+	ruff format src
