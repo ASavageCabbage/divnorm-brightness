@@ -70,10 +70,10 @@ def save_exr(file_path, image):
 def save_png(file_path, image):
     # Ensure image values are in the range [0, 1]
     image_scaled = np.clip(image, 0, 1)
+    image_scaled = np.power(image_scaled, 1.0/2.2)
     # Convert to 8-bit and save as PNG
     image_uint8 = (image_scaled * 255).astype(np.uint8)
     Image.fromarray(image_uint8).save(file_path)
-
 
 def save_pseudocolor_png(file_path, image):
     # Ensure image values are in the range [0, 1]

@@ -8,6 +8,12 @@ import numpy as np
 # Needed to use OpenEXR with OpenCV
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
+#use a MSR (not RMS) in place of Reinhard log average
+#because it is more stable
+def pre_expose_image(image: np.ndarray, key: float = 0.18):
+    average = np.mean(np.sqrt(image))**2
+    return (key/average)*image
+
 
 def resize_image(
     image: np.ndarray, resize_width: int = None, resize_height: int = None
@@ -73,6 +79,7 @@ def read_image(
 
     if any(file_path.endswith(ext) for ext in [".hdr", ".exr"]):
         # Apply gamma correction
+        gamma = 1.0
         r = np.power(r, 1.0 / gamma)
         g = np.power(g, 1.0 / gamma)
         b = np.power(b, 1.0 / gamma)
