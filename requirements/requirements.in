@@ -5,4 +5,7 @@ opencv-python
 pandas
 plotly
 scipy
+torch
+torchvision
+torchaudio
 tqdm
