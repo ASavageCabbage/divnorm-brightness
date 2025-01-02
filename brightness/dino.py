@@ -79,6 +79,7 @@ def read_image(
 
     if any(file_path.endswith(ext) for ext in [".hdr", ".exr"]):
         # Apply gamma correction
+        gamma = 1.0
         r = np.power(r, 1.0 / gamma)
         g = np.power(g, 1.0 / gamma)
         b = np.power(b, 1.0 / gamma)
