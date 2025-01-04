@@ -23,22 +23,20 @@ def xyz_to_lxy(
 def scale_gamma(
     image: np.ndarray | torch.Tensor,
     gamma: float = 2.2,
-    eps: float = 1e-8,
 ) -> np.ndarray | torch.Tensor:
     """Convert linear RGB to nonlinear RGB space.
 
     Expects input channels to be in the range [0, 1].
     """
     # TODO: replace with sRGB transfer function?
-    image[image < eps] = eps
     return image ** (1.0 / gamma)
 
 
-def generate_scales(width: int, cs_ratio: float, min_scale: float) -> list[float]:
-    """Generate an exponential list of scales from width / cs_ratio to min_scale."""
-    scale = width / cs_ratio
+def generate_scales(width: int, cs_ratio: float, num_scales: int) -> list[float]:
+    """Generate an exponential list of scales up to width * cs_ratio."""
+    scale = width * cs_ratio
     scales = []
-    while scale >= min_scale:
+    for _ in range(num_scales):
         scales.insert(0, scale)
         scale /= cs_ratio
     return scales

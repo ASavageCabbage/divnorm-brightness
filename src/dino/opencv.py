@@ -34,7 +34,7 @@ def resize_image(
 
 
 def read_image(
-    file_path: str, white_nits: float = 400, gamma: float = 2.2
+    file_path: str, white_nits: float = 400, gamma: float = 2.2, eps: float = 1e-8
 ) -> np.ndarray:
     """Load HDR or SDR image from disk as RGB numpy array.
 
@@ -49,7 +49,7 @@ def read_image(
     assert len(bgr_image.shape) == 3
     assert bgr_image.shape[2] >= 3
     # Negative values shouldn't exist
-    bgr_image[bgr_image < 0] = 0
+    bgr_image[bgr_image < eps] = eps
     # OpenCV uses BGR
     b = bgr_image[:, :, 0]
     g = bgr_image[:, :, 1]
@@ -123,7 +123,7 @@ def lxy_to_rgb(
 
 
 def gaussian_blur(
-    image: np.ndarray, sigma: float, kernel_sigmas: int = 1
+    image: np.ndarray, sigma: float, kernel_sigmas: int = 2
 ) -> np.ndarray:
     # Ensure the kernel size is odd
     kernel_size = int(2 * kernel_sigmas * sigma + 1) | 1
@@ -141,13 +141,13 @@ def dn_brightness_model(
     L: np.ndarray,
     gamma: float = 2.2,
     cs_ratio: float = 2.0,
-    min_scale: float = 1.0,
-    w: float = 0.85,
+    num_scales: int = 13,
+    w: float = 0.9,
     a: float = 1.0,
     b: float = 1.0,
     c: float = 1.0,
     d: float = 1.0,
-    scale_normalized_constants: bool = False,
+    scale_normalized_constants: bool = True,
 ) -> np.ndarray:
     """Apply divisive normalization brightness model to array of linear luminances.
 
@@ -163,7 +163,7 @@ def dn_brightness_model(
     """
     L = scale_gamma(L, gamma=gamma)
 
-    scales = generate_scales(L.shape[0], cs_ratio, min_scale)
+    scales = generate_scales(L.shape[0], cs_ratio, num_scales)
     weights = [w**i for i in range(len(scales))]
 
     # Initialize weighted_sum as a 2D array
@@ -195,12 +195,11 @@ def dn_brightness_model(
 def gaussian_blur_all_scales(
     L: np.ndarray,
     cs_ratio: float = 2.0,
-    min_scale: float = 1.0,
+    num_scales: int = 13,
 ) -> Generator[tuple[float, np.ndarray], None, None]:
     """Compute and return a Gaussian-blurred image for all envelope scales.
 
-    Returns a generator of (<stdev>, <Gaussian-blurred image>) tuples
-    for all scales down to min_scale.
+    Returns a generator of (<stdev>, <Gaussian-blurred image>) tuples for all scales.
     """
-    for scale in generate_scales(L.shape[0], cs_ratio, min_scale):
+    for scale in generate_scales(L.shape[0], cs_ratio, num_scales):
         yield scale, gaussian_blur(L, scale)

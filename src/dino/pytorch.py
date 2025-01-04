@@ -22,7 +22,7 @@ def rgb_to_xyz(image: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.T
 
 
 def gaussian_blur(
-    image: torch.Tensor, sigma: int, kernel_sigmas: int = 1
+    image: torch.Tensor, sigma: int, kernel_sigmas: int = 2
 ) -> torch.Tensor:
     kernel_size = int(2 * kernel_sigmas * sigma + 1) | 1
     blur = GaussianBlur(kernel_size=kernel_size, sigma=sigma)
@@ -35,19 +35,19 @@ def gaussian_blur(
 
 def dn_brightness_model(
     L: torch.Tensor,
-    cs_ratio: float = 2.0,
-    min_scale: float = 1.0,
     gamma: float = 2.2,
-    w: float = 0.85,
+    cs_ratio: float = 2.0,
+    num_scales: int = 13,
+    w: float = 0.9,
     a: float = 1.0,
     b: float = 1.0,
     c: float = 1.0,
     d: float = 1.0,
-    scale_normalized_constants: bool = False,
+    scale_normalized_constants: bool = True,
 ) -> torch.Tensor:
     L = scale_gamma(L, gamma=gamma)
 
-    scales = generate_scales(L.size()[0], cs_ratio, min_scale)
+    scales = generate_scales(L.size()[0], cs_ratio, num_scales)
     weights = [w**i for i in range(len(scales))]
     weighted_sum = torch.zeros(L.size()[:2]).to(L.device)
     center_response = gaussian_blur(L, scales[0])
