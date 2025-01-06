@@ -4,22 +4,6 @@ import numpy as np
 import torch
 
 
-def xyz_to_lxy(
-    X: np.ndarray | torch.Tensor,
-    Y: np.ndarray | torch.Tensor,
-    Z: np.ndarray | torch.Tensor,
-) -> tuple[
-    np.ndarray | torch.Tensor,
-    np.ndarray | torch.Tensor,
-    np.ndarray | torch.Tensor,
-]:
-    """Convert from XYZ to LXY colour space."""
-    denom = X + Y + Z + 1e-8  # Prevent division by zero
-    x_chroma = X / denom
-    y_chroma = Y / denom
-    return Y, x_chroma, y_chroma  # Use Y as luminance
-
-
 def scale_gamma(
     image: np.ndarray | torch.Tensor,
     gamma: float = 2.2,

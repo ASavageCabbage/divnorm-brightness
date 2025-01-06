@@ -47,7 +47,7 @@ def dn_brightness_model(
 ) -> torch.Tensor:
     L = scale_gamma(L, gamma=gamma)
 
-    scales = generate_scales(L.size()[0], cs_ratio, num_scales)
+    scales = generate_scales(L.size()[1], cs_ratio, num_scales)
     weights = [w**i for i in range(len(scales))]
     weighted_sum = torch.zeros(L.size()[:2]).to(L.device)
     center_response = gaussian_blur(L, scales[0])

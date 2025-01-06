@@ -33,23 +33,17 @@ def resize_image(
     return image
 
 
-def read_image(
-    file_path: str, white_nits: float = 400, gamma: float = 2.2, eps: float = 1e-8
-) -> np.ndarray:
+def read_image(file_path: str, min_value: float = 1e-8) -> np.ndarray:
     """Load HDR or SDR image from disk as RGB numpy array.
 
-    Assumes EXR images are in units of nits (candela/m^2).
-    Assumes SDR images are displayed on a monitor at the specified luminance (nits) for pure white.
-
-    Returns image with RGB channels in nits (linear luminances).
+    Returns image with linear sRGB channels (or unchanged in the case of HDR images).
     """
     bgr_image = cv2.imread(file_path, cv2.IMREAD_UNCHANGED).astype(np.float32)
-
     # RGB or RGBA only
     assert len(bgr_image.shape) == 3
     assert bgr_image.shape[2] >= 3
     # Negative values shouldn't exist
-    bgr_image[bgr_image < eps] = eps
+    bgr_image[bgr_image < min_value] = min_value
     # OpenCV uses BGR
     b = bgr_image[:, :, 0]
     g = bgr_image[:, :, 1]
@@ -58,68 +52,61 @@ def read_image(
 
     if not any(file_path.endswith(ext) for ext in [".hdr", ".exr"]):
         # uint8 for SDR images (0, 255)
-        image = scale_gamma(image / 255, gamma=gamma) * white_nits
+        image = srgb_to_linear(image / 255)
 
     return image
 
 
-def write_image(file_path: str, image: np.ndarray, gamma: float = 2.2):
-    """Write an SDR RGB image array to file_path.
+def write_image(file_path: str, image: np.ndarray):
+    """Write linear RGB image array to file_path as an SDR image.
 
-    image must have dimensions (w, h, 3) and take values from (0, 1).
-    Values less than 0 will be clipped to 0.
-    Values greater than 1 will be clipped to 1.
+    image must have dimensions (w, h, 3).
+    Output image will be clipped to (0, 1) and coverted to sRGB.
     """
-    image = np.clip(image, 0, 1)
-    # Use nonlinear luminance for SDR
-    image = scale_gamma(image, gamma=gamma)
+    image = linear_to_srgb(np.clip(image, 0, 1))
     image = (image * 255).astype(np.int32)
     # RGB to BGR
     r = image[:, :, 0]
     g = image[:, :, 1]
     b = image[:, :, 2]
-    cv2.imwrite(file_path, np.stack([b, g, r], axis=-1))
+    assert cv2.imwrite(file_path, np.stack([b, g, r], axis=-1))
 
 
-def rgb_to_xyz(image: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    # Conversion matrix from sRGB to XYZ
-    rgb_to_xyz_matrix = np.array(
-        [
-            [0.4124564, 0.3575761, 0.1804375],
-            [0.2126729, 0.7151522, 0.0721750],
-            [0.0193339, 0.1191920, 0.9503041],
-        ]
-    )
-    xyz = image @ rgb_to_xyz_matrix.T
-    return xyz[..., 0], xyz[..., 1], xyz[..., 2]  # X, Y, Z
+def srgb_to_linear(image: np.ndarray) -> np.ndarray:
+    """Convert sRGB image to linear luminance.
+
+    Requires input to be in the range [0, 1].
+    """
+    assert np.max(image) <= 1
+    result = ((image + 0.055) / 1.055) ** 2.4
+    linear_mask = image <= 0.04045
+    result[linear_mask] = image[linear_mask] / 12.92
+    return result
 
 
-def lxy_to_rgb(
-    luminance: np.ndarray, x_chroma: np.ndarray, y_chroma: np.ndarray
-) -> np.ndarray:
-    # Ensure all inputs are 2D arrays
-    luminance = np.squeeze(luminance)
-    x_chroma = np.squeeze(x_chroma)
-    y_chroma = np.squeeze(y_chroma)
+def linear_to_srgb(image: np.ndarray):
+    """Convert linear RGB image to sRGB.
 
-    # Validate shapes
-    assert luminance.shape == x_chroma.shape
-    assert luminance.shape == y_chroma.shape
+    Requires input to be in the range [0, 1].
+    """
+    assert np.max(image) <= 1
+    result = 1.055 * (image ** (1 / 2.4)) - 0.055
+    linear_mask = image <= 0.0031308
+    result[linear_mask] = image[linear_mask] * 12.92
+    return result
 
-    z_chroma = 1 - x_chroma - y_chroma
-    X = luminance * x_chroma / (y_chroma + 1e-8)
-    Z = luminance * z_chroma / (y_chroma + 1e-8)
-    Y = luminance
-    xyz_to_rgb_matrix = np.array(
-        [
-            [3.2404542, -1.5371385, -0.4985314],
-            [-0.9692660, 1.8760108, 0.0415560],
-            [0.0556434, -0.2040259, 1.0572252],
-        ]
-    )
-    rgb = np.dot(np.stack([X, Y, Z], axis=-1), xyz_to_rgb_matrix.T)
-    rgb = np.clip(rgb, 0, 1)  # Clip to valid range
-    return rgb
+
+def rgb_to_relative_luminance(image: np.ndarray) -> np.ndarray:
+    """Convert linear sRGB to relative luminance.
+
+    NOTE: Use srgb_to_linear to convert non-linear sRGB images to linear.
+    """
+    return 0.2126 * image[:, :, 0] + 0.7152 * image[:, :, 1] + 0.0722 * image[:, :, 2]
+
+
+def fairchild_to_relative_luminance(image: np.ndarray) -> np.ndarray:
+    """Convert Fairchild RGB to relative luminance."""
+    return 0.1904 * image[:, :, 0] + 0.7646 * image[:, :, 1] + 0.0450 * image[:, :, 2]
 
 
 def gaussian_blur(
@@ -163,7 +150,7 @@ def dn_brightness_model(
     """
     L = scale_gamma(L, gamma=gamma)
 
-    scales = generate_scales(L.shape[0], cs_ratio, num_scales)
+    scales = generate_scales(L.shape[1], cs_ratio, num_scales)
     weights = [w**i for i in range(len(scales))]
 
     # Initialize weighted_sum as a 2D array
