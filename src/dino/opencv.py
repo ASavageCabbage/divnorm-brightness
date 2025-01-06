@@ -28,12 +28,12 @@ def resize_image(
         # Only resize down
         if height > resize_height or width > resize_width:
             image = cv2.resize(
-                image, (resize_width, resize_height), interpolation=cv2.INTER_CUBIC
+                image, (resize_width, resize_height), interpolation=cv2.INTER_AREA
             )
     return image
 
 
-def read_image(file_path: str, min_value: float = 1e-8) -> np.ndarray:
+def read_image(file_path: str, min_value: float = 0) -> np.ndarray:
     """Load HDR or SDR image from disk as RGB numpy array.
 
     Returns image with linear sRGB channels (or unchanged in the case of HDR images).
