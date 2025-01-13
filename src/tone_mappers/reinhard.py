@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def reinhard_tone_map(
+def reinhard(
     image: np.ndarray, key: float = 0.18, L_white: float = 1.0
 ) -> np.ndarray:
     """Tone mapper described by Reinhard et al"""

@@ -114,6 +114,8 @@ def gaussian_blur(
 ) -> np.ndarray:
     # Ensure the kernel size is odd
     kernel_size = int(2 * kernel_sigmas * sigma + 1) | 1
+    # Ensure kernel is never larger than twice the image
+    kernel_size = min(kernel_size, np.min(*image.shape) * 2 - 1)
     blurred = cv2.GaussianBlur(
         image,
         (kernel_size, kernel_size),
