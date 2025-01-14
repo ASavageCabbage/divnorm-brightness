@@ -38,29 +38,30 @@ def lxy_to_rgb(luminance, x_chroma, y_chroma):
                                   [-0.9692660,  1.8760108,  0.0415560],
                                   [0.0556434, -0.2040259,  1.0572252]])
     rgb = np.dot(np.stack([X, Y, Z], axis=-1), xyz_to_rgb_matrix.T)
-    rgb = np.clip(rgb, 0, 1)  # Clip to valid range
     return rgb
 
 
 def bronto(
-    RGBimage: np.ndarray,
+    rgb_image: np.ndarray,
     sigma_0: float = 2.0,
     k: float = 0.85,
-    N: int = 13):
+    N: int = 13,
+    key: float = 0.25,
+    b0: float = 1.0,
+    d0: float = 1.0,
+    power: float = 2.0):
 
-    X, Y, Z = rgb_to_xyz(RGBimage)
+    X, Y, Z = rgb_to_xyz(rgb_image)
     image, x_chroma, y_chroma = xyz_to_lxy(X, Y, Z)
 
-    key = 0.25
     current_sigma = sigma_0
-    power = 2.0
     non_linear_image = image**(1.0/power)
     current_k = 1
     center = cv2.GaussianBlur(non_linear_image, (0, 0), current_sigma)
     accum = np.zeros_like(image)
     response_sum = np.zeros_like(image)
-    b = 1
-    d = 1
+    b = b0
+    d = d0
     for i in range(N-1):
         s2 = current_sigma*current_sigma
         current_sigma *= 2
