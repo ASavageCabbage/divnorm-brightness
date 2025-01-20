@@ -120,11 +120,11 @@ def dinos(
 
 def bronto(
     rgb_image: np.ndarray,
-    gamma: float = 2,
+    gamma: float = 2.2,
     cs_ratio: float = 2.0,
     num_scales: int = 13,
     k: float = 0.25,
-    w: float = 0.85,
+    w: float = 0.9,
     b: float = 1.0,
     d: float = 1.0,
 ):
