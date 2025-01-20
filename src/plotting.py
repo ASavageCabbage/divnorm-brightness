@@ -54,11 +54,12 @@ def image_pseudocolor_plot(
     cmap: str = "viridis",
     output_path: str = "",
     display: bool = False,
+    label: str = "brightness response",
 ):
     fig, ax = plt.subplots(1, 1)
     im = ax.imshow(image, cmap=cmap, aspect="equal")
     cax = ax.inset_axes((1.05, 0, 0.08, 1.0))
-    fig.colorbar(im, cax=cax, label="brightness response")
+    fig.colorbar(im, cax=cax, label=label)
     if title:
         ax.set_title(title)
     fig.tight_layout()
