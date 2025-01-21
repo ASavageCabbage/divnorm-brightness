@@ -12,7 +12,7 @@ model = ACESModel().to(device)
 optim = torch.optim.Adam(model.parameters(), lr=0.005)
 loss_fn = nn.MSELoss()
 
-train_set = BrightnessDataset("images", "brightnesses")
+train_set = BrightnessDataset("images", "brightnesses", downsample_ratio=4)
 train_loader = torch.utils.data.DataLoader(train_set, batch_size=1, shuffle=True)
 
 max_epochs = 10
