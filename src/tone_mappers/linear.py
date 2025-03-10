@@ -5,7 +5,7 @@ from src.tone_mappers.util import rgb_to_xyz, xyz_to_lxy, lxy_to_rgb
 
 def linear(image: np.ndarray, pct: float = 1.0) -> np.ndarray:
     """Simple linear tone mapping where RGB values are scaled between (0, 1)
-    
+
     The pct-percentile of RGB values is used as the maximum value.
     """
     return image / np.percentile(image, pct)
@@ -13,7 +13,7 @@ def linear(image: np.ndarray, pct: float = 1.0) -> np.ndarray:
 
 def linear_luminance(image: np.ndarray, pct: float = 100) -> np.ndarray:
     """Simple linear tone mapping where RGB values are scaled between (0, 1)
-    
+
     The pct-percentile of luminance values is used for scaling.
     """
     X, Y, Z = rgb_to_xyz(image)

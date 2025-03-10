@@ -124,9 +124,21 @@ def gaussian_blur(
     return np.squeeze(blurred)
 
 
+def gaussian_blur_all_scales(
+    L: np.ndarray,
+    cs_ratio: float = 2.0,
+    num_scales: int = 13,
+) -> Generator[tuple[float, np.ndarray], None, None]:
+    """Compute and return a Gaussian-blurred image for all envelope scales.
+
+    Returns a generator of (<stdev>, <Gaussian-blurred image>) tuples for all scales.
+    """
+    for scale in generate_scales(L.shape[0], cs_ratio, num_scales):
+        yield scale, gaussian_blur(L, scale)
+
+
 def dn_brightness_model(
     L: np.ndarray,
-    gamma: float = 2.2,
     cs_ratio: float = 2.0,
     num_scales: int = 13,
     w: float = 0.9,
@@ -136,26 +148,15 @@ def dn_brightness_model(
     d: float = 1.0,
     scale_normalized_constants: bool = True,
 ) -> np.ndarray:
-    """Apply divisive normalization brightness model to array of linear luminances.
-
-    B(x,y) = sum(
-        w**i * (
-            (a*center + b / scales[i]**2) / (c*surround + d / scales[i]**2)
-            - (b / scales[i]**2) / (d / scales[i]**2)
-        )
-    )
+    """Apply DINOS model to array of linear absolute luminances.
 
     NOTE: The current scale is the center stdev at the current scale,
           the next scale up is the surround stdev at the current scale.
     """
-    L = scale_gamma(L, gamma=gamma)
-
     scales = generate_scales(L.shape[1], cs_ratio, num_scales)
     weights = [w**i for i in range(len(scales))]
-
     # Initialize weighted_sum as a 2D array
     weighted_sum = np.zeros(L.shape[:2])
-
     # Compute ratios and weighted sum using only two blurred images at a time
     center_response = gaussian_blur(L, scales[0])
 
@@ -179,14 +180,65 @@ def dn_brightness_model(
     return weighted_sum
 
 
-def gaussian_blur_all_scales(
+def blakeslee99_brightness_model(
     L: np.ndarray,
     cs_ratio: float = 2.0,
     num_scales: int = 13,
-) -> Generator[tuple[float, np.ndarray], None, None]:
-    """Compute and return a Gaussian-blurred image for all envelope scales.
-
-    Returns a generator of (<stdev>, <Gaussian-blurred image>) tuples for all scales.
+    w: float = 0.9,
+) -> np.ndarray:
     """
-    for scale in generate_scales(L.shape[0], cs_ratio, num_scales):
-        yield scale, gaussian_blur(L, scale)
+    Apply Gaussian center-surround brightness model by Blakeslee
+    to array of linear absolute luminances.
+
+    NOTE: The current scale is the center stdev at the current scale,
+          the next scale up is the surround stdev at the current scale.
+    """
+    scales = generate_scales(L.shape[1], cs_ratio, num_scales)
+    weights = [w**i for i in range(len(scales))]
+    # Initialize weighted_sum as a 2D array
+    weighted_sum = np.zeros(L.shape[:2])
+    # Compute ratios and weighted sum using only two blurred images at a time
+    center_response = gaussian_blur(L, scales[0])
+
+    for i in range(1, len(scales)):
+        surround_response = gaussian_blur(L, scales[i])
+        assert center_response.ndim == 2
+        assert surround_response.ndim == 2
+        weighted_sum += weights[i - 1] * (center_response - surround_response)
+        center_response = surround_response
+
+    return weighted_sum
+
+
+def blommaert_brightness_model(
+    L: np.ndarray,
+    cs_ratio: float = 2.0,
+    num_scales: int = 13,
+    a: float = 0.36,
+    d: float = 1.0,
+) -> np.ndarray:
+    """
+    Apply Gaussian brightness model by Blommaert and Martens
+    to array of linear absolute luminances.
+
+    NOTE: The current scale is the center stdev at the current scale,
+          the next scale up is the surround stdev at the current scale.
+    """
+    scales = generate_scales(L.shape[1], cs_ratio, num_scales)
+    # Initialize weighted_sum as a 2D array
+    weighted_sum = np.zeros(L.shape[:2])
+    # Compute ratios and weighted sum using only two blurred images at a time
+    center_response = gaussian_blur(L, scales[0])
+
+    for i in range(1, len(scales)):
+        surround_response = gaussian_blur(L, scales[i])
+        assert center_response.ndim == 2
+        assert surround_response.ndim == 2
+        weighted_sum += (
+            np.exp(-a * np.log(scales[i]))
+            * (center_response - surround_response)
+            / (surround_response + d / scales[i] ** 2)
+        )
+        center_response = surround_response
+
+    return weighted_sum
