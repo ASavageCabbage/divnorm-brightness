@@ -137,23 +137,26 @@ def gaussian_blur_all_scales(
         yield scale, gaussian_blur(L, scale)
 
 
+def arcmin2_to_pixel2(value: float, width_pixels: int, fov_degrees: float) -> float:
+    """Convert a value in arcmin-squared to pixels-squared using small-angle approximation."""
+    return value * (width_pixels / (60 * fov_degrees)) ** 2
+
+
 def dn_brightness_model(
     L: np.ndarray,
     cs_ratio: float = 2.0,
     num_scales: int = 13,
     w: float = 0.9,
-    a: float = 1.0,
-    b: float = 1.0,
-    c: float = 1.0,
-    d: float = 1.0,
-    scale_normalized_constants: bool = True,
+    d_nit_arcmin2: float = 100,
+    image_fov_degrees: float = 72,
 ) -> np.ndarray:
     """Apply DINOS model to array of linear absolute luminances.
 
     NOTE: The current scale is the center stdev at the current scale,
           the next scale up is the surround stdev at the current scale.
     """
-    scales = generate_scales(L.shape[1], cs_ratio, num_scales)
+    width = L.shape[1]
+    scales = generate_scales(width, cs_ratio, num_scales)
     weights = [w**i for i in range(len(scales))]
     # Initialize weighted_sum as a 2D array
     weighted_sum = np.zeros(L.shape[:2])
@@ -166,25 +169,21 @@ def dn_brightness_model(
         assert center_response.ndim == 2
         assert surround_response.ndim == 2
 
-        _b = b
-        _d = d
-        if scale_normalized_constants:
-            _b /= scales[i] ** 2
-            _d /= scales[i] ** 2
-
+        d = arcmin2_to_pixel2(d_nit_arcmin2, width, image_fov_degrees) / scales[i] ** 2
         weighted_sum += weights[i - 1] * (
-            (a * center_response + _b) / (c * surround_response + _d) - _b / _d
+            (center_response + d) / (surround_response + d) - 1
         )
         center_response = surround_response
 
     return weighted_sum
 
 
-def blakeslee99_brightness_model(
+def blakeslee97_brightness_model(
     L: np.ndarray,
     cs_ratio: float = 2.0,
-    num_scales: int = 13,
     w: float = 0.9,
+    center_base_fov_degrees: float = 3,
+    image_fov_degrees: float = 72,
 ) -> np.ndarray:
     """
     Apply Gaussian center-surround brightness model by Blakeslee
@@ -193,7 +192,17 @@ def blakeslee99_brightness_model(
     NOTE: The current scale is the center stdev at the current scale,
           the next scale up is the surround stdev at the current scale.
     """
-    scales = generate_scales(L.shape[1], cs_ratio, num_scales)
+    width = L.shape[1]
+    base_scale = width * center_base_fov_degrees / image_fov_degrees / 2
+    scales = [
+        base_scale / cs_ratio**2,
+        base_scale / cs_ratio,
+        base_scale,
+        base_scale * cs_ratio,
+        base_scale * cs_ratio**2,
+        base_scale * cs_ratio**3,
+        base_scale * cs_ratio**4,
+    ]
     weights = [w**i for i in range(len(scales))]
     # Initialize weighted_sum as a 2D array
     weighted_sum = np.zeros(L.shape[:2])
@@ -202,8 +211,10 @@ def blakeslee99_brightness_model(
 
     for i in range(1, len(scales)):
         surround_response = gaussian_blur(L, scales[i])
+
         assert center_response.ndim == 2
         assert surround_response.ndim == 2
+
         weighted_sum += weights[i - 1] * (center_response - surround_response)
         center_response = surround_response
 
@@ -212,32 +223,33 @@ def blakeslee99_brightness_model(
 
 def blommaert_brightness_model(
     L: np.ndarray,
-    cs_ratio: float = 2.0,
+    scale_ratio: float = 2.0,
     num_scales: int = 13,
+    cs_ratio: float = 1 / np.log(2),
     a: float = 0.36,
-    d: float = 1.0,
+    d_nit_arcmin2: float = 100,
+    image_fov_degrees: float = 72,
 ) -> np.ndarray:
     """
     Apply Gaussian brightness model by Blommaert and Martens
     to array of linear absolute luminances.
-
-    NOTE: The current scale is the center stdev at the current scale,
-          the next scale up is the surround stdev at the current scale.
     """
-    scales = generate_scales(L.shape[1], cs_ratio, num_scales)
-    # Initialize weighted_sum as a 2D array
+    width = L.shape[1]
+    scales = generate_scales(width, scale_ratio, num_scales)
     weighted_sum = np.zeros(L.shape[:2])
-    # Compute ratios and weighted sum using only two blurred images at a time
-    center_response = gaussian_blur(L, scales[0])
 
-    for i in range(1, len(scales)):
-        surround_response = gaussian_blur(L, scales[i])
+    for i in range(0, len(scales) - 1):
+        center_response = gaussian_blur(L, scales[i])
+        surround_response = gaussian_blur(L, scales[i] * cs_ratio)
+
         assert center_response.ndim == 2
         assert surround_response.ndim == 2
+
+        d = arcmin2_to_pixel2(d_nit_arcmin2, width, image_fov_degrees)
         weighted_sum += (
             np.exp(-a * np.log(scales[i]))
             * (center_response - surround_response)
-            / (surround_response + d / scales[i] ** 2)
+            / (center_response + d / scales[i] ** 2)
         )
         center_response = surround_response
 

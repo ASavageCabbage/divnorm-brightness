@@ -7,7 +7,6 @@ from src.tone_mappers.util import rgb_to_xyz, xyz_to_lxy, lxy_to_rgb
 
 def bronto(
     rgb_image: np.ndarray,
-    gamma: float = 2.2,
     cs_ratio: float = 2.0,
     num_scales: int = 13,
     k: float = 0.25,
@@ -17,14 +16,13 @@ def bronto(
 ) -> np.ndarray:
     """Brightness Optimized Normalization Tone-mapping Operator."""
     X, Y, Z = rgb_to_xyz(rgb_image)
-    luminance, x_chroma, y_chroma = xyz_to_lxy(X, Y, Z)
+    L, x_chroma, y_chroma = xyz_to_lxy(X, Y, Z)
 
-    L = luminance ** (1.0 / gamma)
     scales = generate_scales(L.shape[1], cs_ratio, num_scales)
     weights = [w**i for i in range(len(scales))]
     center_response = gaussian_blur(L, scales[0])
-    accum = np.zeros_like(luminance)
-    response_sum = np.zeros_like(luminance)
+    accum = np.zeros_like(L)
+    response_sum = np.zeros_like(L)
 
     for i in range(1, len(scales)):
         surround_response = gaussian_blur(L, scales[i])
@@ -38,5 +36,5 @@ def bronto(
         center_response = surround_response
 
     local_white = accum / response_sum
-    tonemapped_luminance = (k / local_white) * luminance
+    tonemapped_luminance = (k / local_white) * L
     return lxy_to_rgb(tonemapped_luminance, x_chroma, y_chroma)
