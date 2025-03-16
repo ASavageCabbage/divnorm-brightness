@@ -11,8 +11,8 @@ def bronto(
     num_scales: int = 13,
     k: float = 0.25,
     w: float = 0.9,
-    b: float = 1.0,
     d: float = 1.0,
+    m: float = 0.1,
 ) -> np.ndarray:
     """Brightness Optimized Normalization Tone-mapping Operator."""
     X, Y, Z = rgb_to_xyz(rgb_image)
@@ -27,10 +27,8 @@ def bronto(
     for i in range(1, len(scales)):
         surround_response = gaussian_blur(L, scales[i])
         w = weights[i - 1]
-        _b = b / scales[i] ** 2
-        _d = w * d / scales[i] ** 2
-        response = w * ((center_response + _b) / (surround_response + _d) - _b / _d)
-        response = np.abs(response)
+        _d = d / scales[i] ** 2
+        response = w * np.abs((center_response + _d) / (surround_response + _d) - 1) + m
         accum += response * (center_response)
         response_sum += response
         center_response = surround_response
