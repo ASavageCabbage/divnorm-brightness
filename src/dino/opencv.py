@@ -156,6 +156,7 @@ def dn_brightness_model(
           the next scale up is the surround stdev at the current scale.
     """
     width = L.shape[1]
+    d = arcmin2_to_pixel2(d_nit_arcmin2, width, image_fov_degrees)
     scales = generate_scales(width, cs_ratio, num_scales)
     weights = [w**i for i in range(len(scales))]
     # Initialize weighted_sum as a 2D array
@@ -169,9 +170,9 @@ def dn_brightness_model(
         assert center_response.ndim == 2
         assert surround_response.ndim == 2
 
-        d = arcmin2_to_pixel2(d_nit_arcmin2, width, image_fov_degrees) / scales[i] ** 2
+        _d = d / scales[i] ** 2
         weighted_sum += weights[i - 1] * (
-            (center_response + d) / (surround_response + d) - 1
+            (center_response + _d) / (surround_response + _d) - 1
         )
         center_response = surround_response
 
@@ -235,6 +236,7 @@ def blommaert_brightness_model(
     to array of linear absolute luminances.
     """
     width = L.shape[1]
+    d = arcmin2_to_pixel2(d_nit_arcmin2, width, image_fov_degrees)
     scales = generate_scales(width, scale_ratio, num_scales)
     weighted_sum = np.zeros(L.shape[:2])
 
@@ -245,7 +247,6 @@ def blommaert_brightness_model(
         assert center_response.ndim == 2
         assert surround_response.ndim == 2
 
-        d = arcmin2_to_pixel2(d_nit_arcmin2, width, image_fov_degrees)
         weighted_sum += (
             np.exp(-a * np.log(scales[i]))
             * (center_response - surround_response)
