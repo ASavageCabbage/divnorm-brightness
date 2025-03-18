@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.dino.opencv import gaussian_blur
+from src.dino.opencv import arcmin2_to_pixel2, gaussian_blur
 from src.dino.util import generate_scales
 from src.tone_mappers.util import rgb_to_xyz, xyz_to_lxy, lxy_to_rgb
 
@@ -11,14 +11,17 @@ def bronto(
     num_scales: int = 13,
     k: float = 0.25,
     w: float = 0.9,
-    d: float = 1.0,
     m: float = 0.1,
+    d_nit_arcmin2: float = 100,
+    image_fov_degrees: float = 72,
 ) -> np.ndarray:
     """Brightness Optimized Normalization Tone-mapping Operator."""
     X, Y, Z = rgb_to_xyz(rgb_image)
     L, x_chroma, y_chroma = xyz_to_lxy(X, Y, Z)
+    width = L.shape[1]
+    d = arcmin2_to_pixel2(d_nit_arcmin2, width, image_fov_degrees)
 
-    scales = generate_scales(L.shape[1], cs_ratio, num_scales)
+    scales = generate_scales(width, cs_ratio, num_scales)
     weights = [w**i for i in range(len(scales))]
     center_response = gaussian_blur(L, scales[0])
     accum = np.zeros_like(L)
@@ -29,7 +32,7 @@ def bronto(
         w = weights[i - 1]
         _d = d / scales[i] ** 2
         response = w * np.abs((center_response + _d) / (surround_response + _d) - 1) + m
-        accum += response * (center_response)
+        accum += response * surround_response
         response_sum += response
         center_response = surround_response
 
