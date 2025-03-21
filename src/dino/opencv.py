@@ -119,7 +119,7 @@ def gaussian_blur(
         (kernel_size, kernel_size),
         sigmaX=sigma,
         sigmaY=sigma,
-        borderType=cv2.BORDER_DEFAULT,
+        borderType=cv2.BORDER_REFLECT_101,
     )
     return np.squeeze(blurred)
 
