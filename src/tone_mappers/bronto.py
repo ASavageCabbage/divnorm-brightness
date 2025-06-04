@@ -12,7 +12,7 @@ def bronto(
     gamma: float = 1.0,
     k: float = 0.3,
     w: float = 0.9,
-    m: float = 1,
+    m: float = 0.1,
     d_nit_arcmin2: float = 100,
     image_fov_degrees: float = 72,
 ) -> np.ndarray:
