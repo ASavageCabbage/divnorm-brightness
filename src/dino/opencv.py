@@ -124,22 +124,113 @@ def gaussian_blur(
     return np.squeeze(blurred)
 
 
+def generate_mipmap(
+    image: np.ndarray, downscale_ratio: float, levels: int
+) -> list[np.ndarray]:
+    images = [image]
+    for i in range(levels):
+        prev_image = images[-1]
+        height, width = prev_image.shape[:2]
+        new_w = max(1, round(width / downscale_ratio))
+        new_h = max(1, round(height / downscale_ratio))
+        images.append(
+            cv2.resize(prev_image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        )
+    return images
+
+
+def upscale_from_mipmap(
+    mipmap: list[np.ndarray], level: int, interpolation: int = cv2.INTER_LINEAR
+) -> np.ndarray:
+    height, width = mipmap[0].shape[:2]
+    return (
+        mipmap[level]
+        if level == 0
+        else cv2.resize(mipmap[level], (width, height), interpolation=interpolation)
+    )
+
+
+def efficient_blur_from_mipmap(
+    mipmap: list[np.ndarray], level: int, sigma: int
+) -> np.ndarray:
+    height, width = mipmap[0].shape[:2]
+    blurred = gaussian_blur(mipmap[level], sigma)
+    return cv2.resize(blurred, (width, height), interpolation=cv2.INTER_LINEAR)
+
+
 def gaussian_blur_all_scales(
-    L: np.ndarray,
-    cs_ratio: float = 2.0,
-    num_scales: int = 13,
+    image: np.ndarray, cs_ratio: float, num_scales: int
 ) -> Generator[tuple[float, np.ndarray], None, None]:
     """Compute and return a Gaussian-blurred image for all envelope scales.
 
-    Returns a generator of (<stdev>, <Gaussian-blurred image>) tuples for all scales.
+    Returns a generator of (<sigma>, <Gaussian-blurred image>) tuples for all scales.
     """
-    for scale in generate_scales(L.shape[0], cs_ratio, num_scales):
-        yield scale, gaussian_blur(L, scale)
+    mipmap = generate_mipmap(image, cs_ratio, num_scales)
+    for i, scale in enumerate(
+        generate_scales(np.max(image.shape), cs_ratio, num_scales)
+    ):
+        yield scale, efficient_blur_from_mipmap(mipmap, i, cs_ratio)
 
 
 def arcmin2_to_pixel2(value: float, width_pixels: int, fov_degrees: float) -> float:
     """Convert a value in arcmin-squared to pixels-squared using small-angle approximation."""
     return value * (width_pixels / (60 * fov_degrees)) ** 2
+
+
+def dinos_upscale_only(
+    L: np.ndarray,
+    cs_ratio: float = 2.0,
+    num_scales: int = 13,
+    w: float = 0.9,
+    d_nit_arcmin2: float = 100,
+    image_fov_degrees: float = 72,
+    interpolation: int = cv2.INTER_NEAREST,
+) -> np.ndarray:
+    d = arcmin2_to_pixel2(d_nit_arcmin2, L.shape[1], image_fov_degrees)
+    weights = [w**i for i in range(num_scales)]
+    weighted_sum = np.zeros(L.shape[:2])
+    scales = generate_scales(L.shape[1], cs_ratio, num_scales)
+    mipmap = generate_mipmap(L, cs_ratio, num_scales)
+    center_response = upscale_from_mipmap(mipmap, 0, interpolation=interpolation)
+
+    for i in range(1, num_scales):
+        surround_response = upscale_from_mipmap(mipmap, i, interpolation=interpolation)
+        _d = d / scales[i] ** 2
+        weighted_sum += weights[i] * (
+            (center_response + _d) / (surround_response + _d) - 1
+        )
+        i += 1
+        center_response = surround_response
+
+    return weighted_sum
+
+
+def dinos_efficient(
+    L: np.ndarray,
+    cs_ratio: float = 2.0,
+    num_scales: int = 13,
+    w: float = 0.9,
+    d_nit_arcmin2: float = 100,
+    image_fov_degrees: float = 72,
+) -> np.ndarray:
+    d = arcmin2_to_pixel2(d_nit_arcmin2, L.shape[1], image_fov_degrees)
+    weights = [w**i for i in range(num_scales)]
+    # Initialize weighted_sum as a 2D array
+    weighted_sum = np.zeros(L.shape[:2])
+    # Compute ratios and weighted sum using only two blurred images at a time
+    center_response = None
+
+    i = 0
+    for scale, surround_response in gaussian_blur_all_scales(L, cs_ratio, num_scales):
+        if center_response is not None:
+            _d = d / scale**2
+            weighted_sum += weights[i] * (
+                (center_response + _d) / (surround_response + _d) - 1
+            )
+            i += 1
+        center_response = surround_response
+
+    return weighted_sum
 
 
 def dn_brightness_model(
