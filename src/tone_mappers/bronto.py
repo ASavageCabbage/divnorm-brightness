@@ -111,14 +111,16 @@ def bronto(
     """BRightness Optimized Normalization Tone-mapping Operator."""
     X, Y, Z = rgb_to_xyz(rgb_image)
     L, x_chroma, y_chroma = xyz_to_lxy(X, Y, Z)
+    if bloom:
+        L = apply_bloom(L, image_fov_degrees=image_fov_degrees)
+
     d = arcmin2_to_pixel2(d_nit_arcmin2, L.shape[1], image_fov_degrees)
     # Compute ratios and weighted sum using only two blurred images at a time
     center_response = None
     accum = np.zeros_like(L)
     c_sum = np.zeros_like(L)
     i = 0
-    L_bloom = apply_bloom(L, image_fov_degrees=image_fov_degrees) if bloom else L
-    for scale, surround_response in gaussian_blur_all_scales(L_bloom, cs_ratio, num_scales):
+    for scale, surround_response in gaussian_blur_all_scales(L, cs_ratio, num_scales):
         if center_response is not None:
             _d = d / scale**2
             c = w * np.abs((center_response + _d) / (surround_response + _d) - 1) + m
